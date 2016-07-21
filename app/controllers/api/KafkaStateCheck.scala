@@ -41,6 +41,30 @@ class KafkaStateCheck (val messagesApi: MessagesApi, val kafkaManagerContext: Ka
     }
   }
 
+  def consumerAndTopic(cluster: String, consumerGroup: String, topic: String, consumerType: String) = Action.async {
+    kafkaManager.getConsumedTopicState(cluster,consumerGroup,topic, consumerType).map { errorOrConsumedTopicState =>
+      errorOrConsumedTopicState.fold(
+        error => BadRequest(Json.obj("msg" -> error.msg)),
+        consumedTopicState => Ok(Json.obj(
+          "topic" -> topic,
+          "partitionNum" -> consumedTopicState.numPartitions,
+          "totalLag" -> consumedTopicState.totalLag
+        ))
+      )
+    }
+  }
+
+  def consumer(cluster: String, consumerGroup: String, consumerType: String) = Action.async {
+    kafkaManager.getConsumerIdentity(cluster,consumerGroup, consumerType).map { errorOrConsumerIdentity =>
+      errorOrConsumerIdentity.fold(
+        error => BadRequest(Json.obj("msg" -> error.msg)),
+        consumerIdentity => Ok(Json.toJson(
+          consumerIdentity.topicMap.map({ case (topic, state) => (topic, state.totalLag) })
+        ))
+      )
+    }
+  }
+
   def underReplicatedPartitions(c: String, t: String) = Action.async { implicit request =>
     kafkaManager.getTopicIdentity(c,t).map { errorOrTopicIdentity =>
       errorOrTopicIdentity.fold(
